@@ -7,9 +7,9 @@ import { Toaster, toast } from 'react-hot-toast';
 import WalletConnect from './components/WalletConnect';
 import CampaignList from './components/CampaignList';
 import CampaignDetail from './components/CampaignDetail';
-import CreateCampaign from './components/CreateCampaign';
 import AdminPanel from './components/AdminPanel';
 import MyDonations from './components/MyDonations';
+import CancelledCampaigns from './components/CancelledCampaigns';
 
 export const Web3Context = createContext();
 
@@ -93,33 +93,42 @@ function App() {
   return (
     <Web3Context.Provider value={{ provider, signer, account, contract, connectWallet }}>
       <Router>
-        <div className="min-h-screen bg-gray-50 flex flex-col">
-          <Toaster position="bottom-right" />
-          <nav className="bg-white shadow-sm border-b border-gray-200">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="flex justify-between h-16">
-                <div className="flex">
-                  <Link to="/" className="flex-shrink-0 flex items-center font-bold text-xl text-blue-600">
+        <div className="min-h-screen flex flex-col">
+          <Toaster position="bottom-right" toastOptions={{ className: 'neo-card', style: { borderRadius: '12px', border: '4px solid #000000', background: '#fff', color: '#000000', boxShadow: '4px 4px 0px 0px #EAB308' } }} />
+          <nav className="neo-nav sticky top-0 z-50">
+            <div className="w-full px-4 sm:px-6 lg:px-8">
+              <div className="flex justify-between items-center h-16 relative">
+                
+                {/* Logo - Left */}
+                <div className="flex-shrink-0 flex items-center z-10">
+                  <Link to="/" className="font-black text-2xl" style={{ color: 'var(--nb-mustard)' }}>
                     CharityTracker
                   </Link>
-                  <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-                    <Link to="/" className="text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 border-transparent hover:border-gray-300 text-sm font-medium">
+                </div>
+                
+                {/* Center Menu */}
+                <div className="hidden sm:flex absolute inset-0 justify-center items-center pointer-events-none">
+                  <div className="pointer-events-auto flex space-x-6 md:space-x-8">
+                    <Link to="/" className="text-white inline-flex items-center px-1 pt-1 border-b-4 border-transparent hover:border-[var(--nb-mustard)] hover:text-[var(--nb-mustard)] transition-colors text-xs font-bold uppercase">
                       Campaigns
                     </Link>
-                    <Link to="/create" className="text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 border-transparent hover:border-gray-300 text-sm font-medium">
-                      Create Campaign
-                    </Link>
-                    <Link to="/my-donations" className="text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 border-transparent hover:border-gray-300 text-sm font-medium">
+                    <Link to="/my-donations" className="text-white inline-flex items-center px-1 pt-1 border-b-4 border-transparent hover:border-[var(--nb-mustard)] hover:text-[var(--nb-mustard)] transition-colors text-xs font-bold uppercase">
                       My Donations
                     </Link>
-                    <Link to="/admin" className="text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 border-transparent hover:border-gray-300 text-sm font-medium">
+                    <Link to="/cancelled" className="text-white inline-flex items-center px-1 pt-1 border-b-4 border-transparent hover:border-[var(--nb-mustard)] hover:text-[var(--nb-mustard)] transition-colors text-xs font-bold uppercase">
+                      Cancelled
+                    </Link>
+                    <Link to="/admin" className="text-white inline-flex items-center px-1 pt-1 border-b-4 border-transparent hover:border-[var(--nb-mustard)] hover:text-[var(--nb-mustard)] transition-colors text-xs font-bold uppercase">
                       Admin Panel
                     </Link>
                   </div>
                 </div>
-                <div className="flex items-center">
+                
+                {/* Wallet - Right */}
+                <div className="flex-shrink-0 flex items-center z-10">
                   <WalletConnect />
                 </div>
+                
               </div>
             </div>
           </nav>
@@ -128,8 +137,8 @@ function App() {
             <Routes>
               <Route path="/" element={<CampaignList />} />
               <Route path="/campaign/:id" element={<CampaignDetail />} />
-              <Route path="/create" element={<CreateCampaign />} />
               <Route path="/my-donations" element={<MyDonations />} />
+              <Route path="/cancelled" element={<CancelledCampaigns />} />
               <Route path="/admin" element={<AdminPanel />} />
             </Routes>
           </main>

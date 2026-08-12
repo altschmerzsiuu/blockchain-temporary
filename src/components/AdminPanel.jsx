@@ -71,33 +71,36 @@ export default function AdminPanel() {
 
   if (!isAdmin) {
     return (
-      <div className="max-w-2xl mx-auto bg-red-50 p-8 rounded-lg text-center border border-red-200">
-        <h2 className="text-xl font-bold text-red-700">Access Denied</h2>
-        <p className="text-red-600 mt-2">Only the contract administrator can view this page.</p>
+      <div className="max-w-2xl mx-auto neo-card bg-[var(--nb-red)] p-8 text-center">
+        <h2 className="text-3xl font-black text-white uppercase">Access Denied</h2>
+        <p className="text-white font-bold text-lg mt-4">Only the contract administrator can view this page.</p>
       </div>
     );
   }
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold">Admin Panel - Pending Withdrawals</h1>
+      <div className="mb-8">
+        <h1 className="text-3xl font-black text-white mb-2 uppercase tracking-tight">Admin Panel</h1>
+        <p className="text-white opacity-80 text-base font-medium">Review and approve pending withdrawal requests from campaign owners.</p>
+      </div>
       
       {pendingRequests.length === 0 ? (
-        <p className="text-gray-500 bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+        <p className="text-[var(--nb-black)] bg-[#D1D5DB] p-6 rounded-xl border-4 border-[var(--nb-black)] font-bold text-lg">
           No pending withdrawal requests.
         </p>
       ) : (
         <div className="grid grid-cols-1 gap-4">
           {pendingRequests.map(camp => (
-            <div key={camp.id.toString()} className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 flex justify-between items-center">
+            <div key={camp.id.toString()} className="neo-card p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
-                <h3 className="text-lg font-bold">{camp.name}</h3>
-                <p className="text-sm text-gray-500">Owner: {camp.owner}</p>
-                <p className="text-sm text-gray-500">Raised: {formatEther(camp.raisedAmount)} ETH</p>
+                <h3 className="text-2xl font-black text-[var(--nb-black)] mb-1">{camp.name}</h3>
+                <p className="text-sm text-[var(--nb-black)] font-bold">Owner: {camp.owner}</p>
+                <p className="text-sm text-[var(--nb-black)] font-bold">Raised: {formatEther(camp.raisedAmount)} ETH</p>
               </div>
               <button
                 onClick={() => handleApprove(camp.id)}
-                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                className="px-6 py-3 neo-button neo-button-green whitespace-nowrap"
               >
                 Approve Withdrawal
               </button>

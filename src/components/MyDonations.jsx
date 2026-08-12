@@ -30,8 +30,8 @@ export default function MyDonations() {
           userDonations.push({
             campaign: camp,
             amount: totalDonatedToCamp,
-            canRefund: Number(camp.deadline) * 1000 < Date.now() && 
-                       camp.raisedAmount < camp.targetAmount &&
+            canRefund: (camp.isCancelled || 
+                       (Number(camp.deadline) * 1000 < Date.now() && camp.raisedAmount < camp.targetAmount)) &&
                        !camp.fundsWithdrawn
           });
         }
@@ -71,25 +71,28 @@ export default function MyDonations() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold">My Donations</h1>
+      <div className="mb-8">
+        <h1 className="text-3xl font-black text-white mb-2 uppercase tracking-tight">My Donations</h1>
+        <p className="text-white opacity-80 text-base font-medium">View all your past contributions and track refunds for cancelled campaigns.</p>
+      </div>
       
       {myDonations.length === 0 ? (
-        <p className="text-gray-500 bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+        <p className="text-[var(--nb-black)] bg-[#D1D5DB] p-6 rounded-xl border-4 border-[var(--nb-black)] font-bold text-lg">
           You haven't made any donations yet.
         </p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {myDonations.map((item, idx) => (
-            <div key={idx} className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-              <h3 className="text-lg font-bold mb-2">{item.campaign.name}</h3>
-              <p className="text-sm text-gray-600 mb-4">
-                You donated: <span className="font-bold">{formatEther(item.amount)} ETH</span>
+            <div key={idx} className="neo-card p-6 flex flex-col">
+              <h3 className="text-2xl font-black text-[var(--nb-black)] mb-2">{item.campaign.name}</h3>
+              <p className="text-sm text-[var(--nb-black)] font-bold mb-6">
+                You donated: <span className="font-black text-[var(--nb-blue)] text-lg">{formatEther(item.amount)} ETH</span>
               </p>
               
               <div className="flex space-x-4">
                 <Link 
                   to={`/campaign/${item.campaign.id.toString()}`}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm font-medium"
+                  className="px-4 py-2 neo-button bg-white text-sm"
                 >
                   View Campaign
                 </Link>
@@ -97,14 +100,18 @@ export default function MyDonations() {
                 {item.canRefund && (
                   <button
                     onClick={() => handleRefund(item.campaign.id)}
-                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm font-medium"
+                    className="px-4 py-2 neo-button neo-button-red text-sm"
                   >
                     Claim Refund
                   </button>
                 )}
               </div>
               {item.canRefund && (
-                <p className="mt-2 text-xs text-red-600">Campaign failed its goal. You can claim a refund.</p>
+                <p className="mt-4 text-sm font-black text-[var(--nb-red)]">
+                  {item.campaign.isCancelled 
+                    ? "Campaign was cancelled. You can claim a refund." 
+                    : "Campaign failed its goal. You can claim a refund."}
+                </p>
               )}
             </div>
           ))}

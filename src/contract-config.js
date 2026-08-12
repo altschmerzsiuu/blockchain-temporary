@@ -1,4 +1,4 @@
-export const CONTRACT_ADDRESS = "0x4944F18b788F884Cf664623CaAa4e37f373cA616";
+export const CONTRACT_ADDRESS = "0x533A7886f49d536CbFEf38414BB669963506E49e";
 
 export const CONTRACT_ABI = [
 	{
@@ -51,6 +51,19 @@ export const CONTRACT_ABI = [
 		"type": "event"
 	},
 	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "uint256",
+				"name": "id",
+				"type": "uint256"
+			}
+		],
+		"name": "CampaignCancelled",
+		"type": "event"
+	},
+	{
 		"inputs": [
 			{
 				"internalType": "string",
@@ -69,6 +82,19 @@ export const CONTRACT_ABI = [
 			}
 		],
 		"name": "createCampaign",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_campaignId",
+				"type": "uint256"
+			}
+		],
+		"name": "cancelCampaign",
 		"outputs": [],
 		"stateMutability": "nonpayable",
 		"type": "function"
@@ -306,6 +332,11 @@ export const CONTRACT_ABI = [
 				"internalType": "bool",
 				"name": "fundsWithdrawn",
 				"type": "bool"
+			},
+			{
+				"internalType": "bool",
+				"name": "isCancelled",
+				"type": "bool"
 			}
 		],
 		"stateMutability": "view",
@@ -395,6 +426,11 @@ export const CONTRACT_ABI = [
 						"internalType": "bool",
 						"name": "fundsWithdrawn",
 						"type": "bool"
+					},
+					{
+						"internalType": "bool",
+						"name": "isCancelled",
+						"type": "bool"
 					}
 				],
 				"internalType": "struct CharityDonationTracker.Campaign[]",
@@ -455,6 +491,11 @@ export const CONTRACT_ABI = [
 					{
 						"internalType": "bool",
 						"name": "fundsWithdrawn",
+						"type": "bool"
+					},
+					{
+						"internalType": "bool",
+						"name": "isCancelled",
 						"type": "bool"
 					}
 				],
