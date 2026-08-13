@@ -5,38 +5,26 @@ import { formatEther } from 'ethers';
 import { supabase } from '../supabaseClient';
 import CreateCampaign from './CreateCampaign';
 
-export default function CampaignList() {
-  const { account, isAdmin, globalCampaigns, globalMetaData, globalDataLoading, refreshGlobalData } = useContext(Web3Context);
+export default function MyCampaigns() {
+  const { account, globalCampaigns, globalMetaData, globalDataLoading, refreshGlobalData } = useContext(Web3Context);
   const [showCreateSidebar, setShowCreateSidebar] = useState(false);
 
   if (globalDataLoading) {
-    return <div className="text-center py-10">Loading campaigns...</div>;
+    return <div className="text-center py-10 text-white">Loading your campaigns...</div>;
   }
 
-  const activeList = globalCampaigns.filter(camp => {
-    const raised = parseFloat(formatEther(camp.raisedAmount));
-    const target = parseFloat(formatEther(camp.targetAmount));
-    const isGoalReached = raised >= target;
-    const isDeadlinePassed = (Date.now() / 1000) >= Number(camp.deadline);
-    
-    const isClosed = camp.isCancelled || isGoalReached || isDeadlinePassed;
-    
-    if (isAdmin) return !isClosed;
-    return !isClosed && camp.owner.toLowerCase() !== account.toLowerCase();
-  });
+  const myCampaigns = globalCampaigns.filter(camp => camp.owner.toLowerCase() === account.toLowerCase());
 
   return (
     <div className="relative">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-black text-white uppercase tracking-tight">{isAdmin ? 'Active Campaigns' : 'Other Campaigns'}</h1>
-        {!isAdmin && (
-          <button 
-            onClick={() => setShowCreateSidebar(true)}
-            className="neo-button px-6 py-3 text-sm flex items-center gap-2 cursor-pointer"
-          >
-            <span className="text-xl leading-none">+</span> Create Campaign
-          </button>
-        )}
+        <h1 className="text-3xl font-black text-white uppercase tracking-tight">My Campaigns</h1>
+        <button 
+          onClick={() => setShowCreateSidebar(true)}
+          className="neo-button px-6 py-3 text-sm flex items-center gap-2 cursor-pointer"
+        >
+          <span className="text-xl leading-none">+</span> Create Campaign
+        </button>
       </div>
       
       {showCreateSidebar && (
@@ -49,11 +37,11 @@ export default function CampaignList() {
         />
       )}
       
-      {activeList.length === 0 ? (
-        <p className="text-[var(--nb-black)] bg-[#D1D5DB] p-6 rounded-xl border-4 border-[var(--nb-black)] font-bold text-lg text-center">No campaigns found.</p>
+      {myCampaigns.length === 0 ? (
+        <p className="text-[var(--nb-black)] bg-[#D1D5DB] p-6 rounded-xl border-4 border-[var(--nb-black)] font-bold text-lg text-center">You haven't created any campaigns yet.</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {activeList.map((camp) => {
+          {myCampaigns.map((camp) => {
             const cid = camp.id.toString();
             const raised = parseFloat(formatEther(camp.raisedAmount));
             const target = parseFloat(formatEther(camp.targetAmount));
@@ -65,16 +53,6 @@ export default function CampaignList() {
             const isFailed = (Date.now() / 1000) >= Number(camp.deadline) && raised < target;
             const isWithdrawn = camp.fundsWithdrawn;
             const isGoalReached = raised >= target && !camp.fundsWithdrawn;
-
-            const undergroundNames = ["Agent 47", "Cipher", "Ghost", "Neo", "V", "Zero", "Morpheus", "Trinity", "Oracle", "Raven", "Shadow", "Specter", "Phantom", "Wraith", "Reaper", "Enigma", "Omen", "Silverhand", "Glitch", "Byte", "Matrix", "Nomad"];
-            const getAlias = (address) => {
-              if (!address) return "Unknown";
-              let sum = 0;
-              for (let i = 0; i < address.length; i++) {
-                sum += address.charCodeAt(i);
-              }
-              return undergroundNames[sum % undergroundNames.length];
-            };
 
             return (
               <div key={cid} className="neo-card overflow-hidden flex flex-col">
@@ -89,18 +67,18 @@ export default function CampaignList() {
                   )}
                   {/* Badges */}
                   <div className="absolute top-2 right-2 flex flex-col gap-2 items-end">
-                    {isWithdrawn && <span className="neo-badge green px-2 py-1 text-xs">Successfully Withdrawn</span>}
-                    {isFailed && <span className="neo-badge red px-2 py-1 text-xs">Unsuccessful</span>}
-                    {isGoalReached && <span className="neo-badge px-2 py-1 text-xs">Goal Reached</span>}
+                    {camp.isCancelled && <span className="neo-badge red px-2 py-1 text-xs">CANCELLED</span>}
+                    {!camp.isCancelled && isWithdrawn && <span className="neo-badge green px-2 py-1 text-xs">Successfully Withdrawn</span>}
+                    {!camp.isCancelled && isFailed && <span className="neo-badge red px-2 py-1 text-xs">Unsuccessful</span>}
+                    {!camp.isCancelled && isGoalReached && <span className="neo-badge px-2 py-1 text-xs">Goal Reached</span>}
                   </div>
                 </div>
                 
                 <div className="p-6 flex-1 flex flex-col">
                   <h3 className="text-2xl font-black text-[var(--nb-black)] mb-1 truncate">{camp.name}</h3>
-                  <div className="text-xs mb-3 font-bold text-[var(--nb-blue)] uppercase flex flex-col gap-1">
-                    <span>{meta.org_name || "Unknown Org"} {meta.org_verified && "✓"}</span>
-                    <span className="text-[var(--nb-red)] text-[10px] tracking-widest">Initiated by: {getAlias(camp.owner)}</span>
-                  </div>
+                  <p className="text-xs mb-3 font-bold text-[var(--nb-blue)] uppercase">
+                    {meta.org_name || "Unknown Org"} {meta.org_verified && "✓"}
+                  </p>
                   
                   <div className="text-sm text-[var(--nb-black)] font-bold mb-4">
                     Target: {target} ETH
@@ -123,7 +101,7 @@ export default function CampaignList() {
                     to={`/campaign/${cid}`}
                     className="block w-full text-center px-4 py-3 text-sm neo-button mt-auto"
                   >
-                    View & Donate
+                    Manage Campaign
                   </Link>
                 </div>
               </div>

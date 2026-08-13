@@ -113,3 +113,13 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--nb-black);
 }
 
+.neo-badge.red {
+  background-color: var(--nb-red);
+  color: #FFFFFF;
+}
+
+.neo-badge.green {
+  background-color: var(--nb-green);
+  color: #FFFFFF;
+}
+

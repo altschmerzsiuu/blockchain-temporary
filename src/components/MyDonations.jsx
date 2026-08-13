@@ -5,19 +5,25 @@ import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
 export default function MyDonations() {
-  const { contract, account } = useContext(Web3Context);
+  const { contract, account, globalCampaigns, globalDataLoading, refreshGlobalData } = useContext(Web3Context);
   const [myDonations, setMyDonations] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const fetchMyDonations = async () => {
-    if (!contract || !account) return;
+    if (!contract || !account || globalDataLoading) return;
     try {
-      const allCampaigns = await contract.getAllCampaigns();
+      setLoading(true);
+      
+      // Fetch donation histories concurrently for all campaigns
+      const histories = await Promise.all(
+        globalCampaigns.map(camp => contract.getDonationHistory(camp.id))
+      );
+
       let userDonations = [];
 
-      for (let i = 0; i < allCampaigns.length; i++) {
-        const camp = allCampaigns[i];
-        const history = await contract.getDonationHistory(camp.id);
+      for (let i = 0; i < globalCampaigns.length; i++) {
+        const camp = globalCampaigns[i];
+        const history = histories[i];
         
         let totalDonatedToCamp = 0n;
         for (let j = 0; j < history.length; j++) {
@@ -30,9 +36,7 @@ export default function MyDonations() {
           userDonations.push({
             campaign: camp,
             amount: totalDonatedToCamp,
-            canRefund: (camp.isCancelled || 
-                       (Number(camp.deadline) * 1000 < Date.now() && camp.raisedAmount < camp.targetAmount)) &&
-                       !camp.fundsWithdrawn
+            canRefund: !camp.fundsWithdrawn
           });
         }
       }
@@ -46,7 +50,7 @@ export default function MyDonations() {
 
   useEffect(() => {
     fetchMyDonations();
-  }, [contract, account]);
+  }, [contract, account, globalCampaigns, globalDataLoading]);
 
   const handleRefund = async (campaignId) => {
     if (!contract) return;
@@ -60,7 +64,8 @@ export default function MyDonations() {
       });
 
       await txPromise;
-      fetchMyDonations(); // Refresh
+      fetchMyDonations(); // Refresh locally
+      refreshGlobalData(); // Refresh global to update campaign raised amounts etc
     } catch (err) {
       console.error("Refund failed:", err);
     }
@@ -82,9 +87,21 @@ export default function MyDonations() {
         </p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {myDonations.map((item, idx) => (
-            <div key={idx} className="neo-card p-6 flex flex-col">
-              <h3 className="text-2xl font-black text-[var(--nb-black)] mb-2">{item.campaign.name}</h3>
+          {myDonations.map((item, idx) => {
+            const camp = item.campaign;
+            const raised = parseFloat(formatEther(camp.raisedAmount));
+            const target = parseFloat(formatEther(camp.targetAmount));
+            const isFailed = (Date.now() / 1000) >= Number(camp.deadline) && raised < target;
+            const isWithdrawn = camp.fundsWithdrawn;
+            
+            return (
+            <div key={idx} className="neo-card p-6 flex flex-col relative">
+              <div className="absolute top-6 right-6 flex flex-col gap-2 items-end z-10">
+                {camp.isCancelled && <span className="neo-badge red px-2 py-1 text-xs">Cancelled</span>}
+                {isWithdrawn && <span className="neo-badge green px-2 py-1 text-xs">Successfully Withdrawn</span>}
+                {isFailed && !camp.isCancelled && <span className="neo-badge red px-2 py-1 text-xs">Unsuccessful</span>}
+              </div>
+              <h3 className="text-2xl font-black text-[var(--nb-black)] mb-2 pr-24">{camp.name}</h3>
               <p className="text-sm text-[var(--nb-black)] font-bold mb-6">
                 You donated: <span className="font-black text-[var(--nb-blue)] text-lg">{formatEther(item.amount)} ETH</span>
               </p>
@@ -108,13 +125,12 @@ export default function MyDonations() {
               </div>
               {item.canRefund && (
                 <p className="mt-4 text-sm font-black text-[var(--nb-red)]">
-                  {item.campaign.isCancelled 
-                    ? "Campaign was cancelled. You can claim a refund." 
-                    : "Campaign failed its goal. You can claim a refund."}
+                  Funds haven't been withdrawn. You can claim a refund at any time.
                 </p>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

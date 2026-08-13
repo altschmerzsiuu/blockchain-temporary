@@ -7,7 +7,7 @@ import { supabase } from '../supabaseClient';
 
 export default function CampaignDetail() {
   const { id } = useParams();
-  const { contract, account } = useContext(Web3Context);
+  const { contract, account, isAdmin, refreshGlobalData } = useContext(Web3Context);
   
   // On-chain state
   const [campaign, setCampaign] = useState(null);
@@ -20,6 +20,9 @@ export default function CampaignDetail() {
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  
+  // Accordion state: 'myDonations' | 'globalHistory' | null
+  const [activeAccordion, setActiveAccordion] = useState('myDonations');
 
   const fetchCampaignData = async () => {
     if (!contract) return;
@@ -79,7 +82,9 @@ export default function CampaignDetail() {
 
       await txPromise;
       setDonateAmount("");
-      // Event listener will trigger refresh
+      fetchCampaignData(); // Explicitly fetch to ensure UI updates immediately
+      refreshGlobalData(); // Update global context in background
+      // Event listener will also trigger refresh as backup
     } catch (err) {
       console.error("Donation failed:", err);
     }
@@ -116,6 +121,7 @@ export default function CampaignDetail() {
 
       await txPromise;
       fetchCampaignData();
+      refreshGlobalData();
     } catch (err) {
       console.error("Withdraw funds failed:", err);
     }
@@ -125,7 +131,9 @@ export default function CampaignDetail() {
     if (!contract) return;
     setIsCancelModalOpen(false); // Close modal
     try {
-      const txPromise = contract.cancelCampaign(id).then(tx => tx.wait());
+      const txPromise = isAdmin 
+        ? contract.cancelCampaignAdmin(id).then(tx => tx.wait())
+        : contract.cancelCampaign(id).then(tx => tx.wait());
       toast.promise(txPromise, {
         loading: 'Cancelling campaign...',
         success: 'Campaign cancelled successfully!',
@@ -138,6 +146,24 @@ export default function CampaignDetail() {
     }
   };
 
+  const handleRefundSpecific = async (donationIndex) => {
+    if (!contract) return;
+    try {
+      const txPromise = contract.refundSpecific(id, donationIndex).then(tx => tx.wait());
+      
+      toast.promise(txPromise, {
+        loading: 'Processing refund...',
+        success: 'Refund successful!',
+        error: 'Refund failed.',
+      });
+
+      await txPromise;
+      fetchCampaignData();
+    } catch (err) {
+      console.error("Refund failed:", err);
+    }
+  };
+
   if (!contract || loading) return <div className="text-center py-10">Loading...</div>;
   if (!campaign || campaign.id.toString() === "0") return <div className="text-center py-10">Campaign not found.</div>;
 
@@ -146,19 +172,40 @@ export default function CampaignDetail() {
   const target = parseFloat(formatEther(campaign.targetAmount));
   const progress = target > 0 ? Math.min((raised / target) * 100, 100) : 0;
   
-  return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      
-      {/* Meta Image Header */}
-      {meta?.image_url && (
-        <div className="w-full h-64 md:h-96 rounded-xl overflow-hidden border-4 border-[var(--nb-black)]">
-          <img src={meta.image_url} alt={campaign.name} className="w-full h-full object-cover" />
-        </div>
-      )}
+  const isRefundable = !campaign.fundsWithdrawn;
+  const isFailed = (Date.now() / 1000) >= Number(campaign.deadline) && raised < target;
+  const isGoalReached = raised >= target;
+  const isDeadlinePassed = (Date.now() / 1000) >= Number(campaign.deadline);
+  const isClosed = campaign.isCancelled || isFailed || isGoalReached || isDeadlinePassed;
 
-      {/* Campaign Info */}
-      <div className="neo-card p-8">
-        <h1 className="text-4xl font-black text-[var(--nb-black)] mb-2 uppercase tracking-tight">{campaign.name}</h1>
+  // Filter donations for current user
+  const myDonationsList = donations.filter(d => account && d.donor.toLowerCase() === account.toLowerCase());
+
+  return (
+    <div className="max-w-7xl mx-auto space-y-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        
+        {/* =======================
+            LEFT COLUMN: CAMPAIGN INFO
+            ======================= */}
+        <div className="lg:col-span-7 xl:col-span-7 space-y-8">
+          <div className="neo-card overflow-hidden">
+            {/* Meta Image Header */}
+            {meta?.image_url && (
+              <div className="w-full h-64 md:h-80 border-b-4 border-[var(--nb-black)] bg-[#D1D5DB]">
+                <img src={meta.image_url} alt={campaign.name} className="w-full h-full object-cover" />
+              </div>
+            )}
+
+            {/* Campaign Info */}
+            <div className="p-6 md:p-10">
+              <div className="flex flex-wrap items-center gap-3 mb-2">
+                <h1 className="text-4xl md:text-5xl font-black text-[var(--nb-black)] uppercase tracking-tight leading-tight">{campaign.name}</h1>
+                {campaign.isCancelled && <span className="neo-badge red px-3 py-1 text-sm">CANCELLED</span>}
+                {!campaign.isCancelled && isFailed && <span className="neo-badge red px-3 py-1 text-sm">UNSUCCESSFUL</span>}
+                {isGoalReached && <span className="neo-badge px-3 py-1 text-sm">GOAL REACHED</span>}
+                {!campaign.isCancelled && !isFailed && !isGoalReached && isDeadlinePassed && <span className="neo-badge px-3 py-1 text-sm">ENDED</span>}
+              </div>
         
         {meta?.org_name && (
           <p className="text-sm text-[var(--nb-blue)] uppercase font-bold mb-4">
@@ -182,111 +229,218 @@ export default function CampaignDetail() {
           </div>
         )}
 
-        {/* Owner Controls */}
-        {isOwner && (
-          <div className="bg-[#D1D5DB] p-6 rounded-xl border-4 border-[var(--nb-black)] mb-6 space-y-4">
-            <h3 className="font-black text-xl uppercase">Owner Controls</h3>
-            <p className="text-sm font-bold text-[var(--nb-black)]">
-              Withdrawal Approved by Admin: {campaign.withdrawalApproved ? "Yes" : "No"}
-            </p>
-            <div className="flex space-x-4">
-              <button 
-                onClick={handleRequestWithdrawal}
-                disabled={campaign.fundsWithdrawn || campaign.withdrawalApproved || campaign.isCancelled}
-                className="px-4 py-2 neo-button disabled:opacity-50 text-sm"
-              >
-                Request Withdrawal
-              </button>
-              <button 
-                onClick={handleWithdrawFunds}
-                disabled={!campaign.withdrawalApproved || campaign.fundsWithdrawn || campaign.isCancelled}
-                className="px-4 py-2 neo-button neo-button-green disabled:opacity-50 text-sm"
-              >
-                Withdraw Funds
-              </button>
-              {!campaign.isCancelled && !campaign.fundsWithdrawn && (
-                <button 
-                  onClick={() => setIsCancelModalOpen(true)}
-                  className="px-4 py-2 neo-button neo-button-red disabled:opacity-50 text-sm"
-                >
-                  Cancel Campaign
-                </button>
-              )}
-            </div>
-            {campaign.fundsWithdrawn && <p className="text-[var(--nb-green)] font-black text-lg">Funds have been withdrawn.</p>}
-          </div>
-        )}
+            {/* Owner Controls */}
+            {isOwner && (
+              <div className="bg-[#D1D5DB] p-6 rounded-xl border-4 border-[var(--nb-black)] mb-6 space-y-4">
+                <h3 className="font-black text-xl uppercase">Owner Controls</h3>
+                <p className="text-sm font-bold text-[var(--nb-black)]">
+                  Withdrawal Approved by Admin: {campaign.withdrawalApproved ? "Yes" : "No"}
+                </p>
+                <div className="flex space-x-4">
+                  <button 
+                    onClick={handleRequestWithdrawal}
+                    disabled={campaign.fundsWithdrawn || campaign.withdrawalApproved || campaign.isCancelled}
+                    className="px-4 py-2 neo-button disabled:opacity-50 text-sm"
+                  >
+                    Request Withdrawal
+                  </button>
+                  <button 
+                    onClick={handleWithdrawFunds}
+                    disabled={!campaign.withdrawalApproved || campaign.fundsWithdrawn || campaign.isCancelled}
+                    className="px-4 py-2 neo-button neo-button-green disabled:opacity-50 text-sm"
+                  >
+                    Withdraw Funds
+                  </button>
+                  {!isClosed && !campaign.fundsWithdrawn && (
+                    <button 
+                      onClick={() => setIsCancelModalOpen(true)}
+                      className="px-4 py-2 neo-button neo-button-red disabled:opacity-50 text-sm"
+                    >
+                      Cancel Campaign
+                    </button>
+                  )}
+                </div>
+                {campaign.fundsWithdrawn && <p className="text-[var(--nb-green)] font-black text-lg">Funds have been withdrawn.</p>}
+              </div>
+            )}
 
-        {/* Donate Form or Cancelled Message */}
-        {campaign.isCancelled ? (
-          <div className="bg-[var(--nb-red)] p-6 rounded-xl border-4 border-[var(--nb-black)] mt-6">
-            <h3 className="font-black text-2xl text-white text-center uppercase">This campaign has been cancelled.</h3>
-            <p className="text-lg font-bold text-white text-center mt-2">Donors can claim their refunds in the "My Donations" tab.</p>
-          </div>
-        ) : (
-          <form onSubmit={handleDonate} className="space-y-4 border-t-4 border-[var(--nb-black)] pt-6 mt-6">
-            <h3 className="text-2xl font-black uppercase">Make a Donation</h3>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <input 
-                type="number"
-                step="0.001"
-                value={donateAmount}
-                onChange={(e) => setDonateAmount(e.target.value)}
-                placeholder="Amount in ETH"
-                className="flex-1 neo-input p-3"
-                required
-              />
-              <label className="flex items-center space-x-2 whitespace-nowrap font-bold cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  checked={isAnonymous}
-                  onChange={(e) => setIsAnonymous(e.target.checked)}
-                  className="rounded w-5 h-5 border-2 border-[var(--nb-black)] text-[var(--nb-blue)]"
-                />
-                <span>Donate Anonymously</span>
-              </label>
-              <button type="submit" className="px-8 py-3 neo-button neo-button-blue whitespace-nowrap text-lg">
-                Donate
-              </button>
+            {/* Donate Form or Closed/Owner Messages */}
+            {campaign.isCancelled ? (
+              <div className="bg-[var(--nb-red)] p-6 rounded-xl border-4 border-[var(--nb-black)] mt-6">
+                <h3 className="font-black text-2xl text-white text-center uppercase">This campaign has been cancelled.</h3>
+                <p className="text-lg font-bold text-white text-center mt-2">Donors can claim their refunds.</p>
+              </div>
+            ) : isAdmin ? (
+              <div className="bg-[#D1D5DB] p-6 rounded-xl border-4 border-[var(--nb-black)] mt-6 flex flex-col items-center">
+                <h3 className="font-black text-2xl text-[var(--nb-black)] text-center uppercase">Admin Controls</h3>
+                <p className="text-lg font-bold text-[var(--nb-black)] text-center mt-2 mb-4">Admins cannot donate. You can cancel this campaign if it violates rules.</p>
+                {!isClosed && (
+                  <button 
+                    onClick={() => setIsCancelModalOpen(true)}
+                    className="px-6 py-3 neo-button neo-button-red text-lg"
+                  >
+                    Cancel / Ban Campaign
+                  </button>
+                )}
+              </div>
+            ) : isOwner ? (
+              <div className="bg-[var(--nb-mustard)] p-6 rounded-xl border-4 border-[var(--nb-black)] mt-6">
+                <h3 className="font-black text-2xl text-[var(--nb-black)] text-center uppercase">You are the Owner</h3>
+                <p className="text-lg font-bold text-[var(--nb-black)] text-center mt-2">You cannot donate to your own campaign.</p>
+              </div>
+            ) : isClosed ? (
+              <div className="bg-[#D1D5DB] p-6 rounded-xl border-4 border-[var(--nb-black)] mt-6">
+                <h3 className="font-black text-2xl text-[var(--nb-black)] text-center uppercase">Campaign Closed</h3>
+                <p className="text-lg font-bold text-[var(--nb-black)] text-center mt-2">This campaign is no longer accepting donations.</p>
+              </div>
+            ) : (
+              <form onSubmit={handleDonate} className="space-y-4 border-t-4 border-[var(--nb-black)] pt-6 mt-6">
+                <h3 className="text-2xl font-black uppercase">Make a Donation</h3>
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <input 
+                    type="number"
+                    step="0.001"
+                    value={donateAmount}
+                    onChange={(e) => setDonateAmount(e.target.value)}
+                    placeholder="Amount in ETH"
+                    className="flex-1 neo-input p-3"
+                    required
+                  />
+                  <label className="flex items-center space-x-2 whitespace-nowrap font-bold cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={isAnonymous}
+                      onChange={(e) => setIsAnonymous(e.target.checked)}
+                      className="rounded w-5 h-5 border-2 border-[var(--nb-black)] text-[var(--nb-blue)]"
+                    />
+                    <span>Donate Anonymously</span>
+                  </label>
+                  <button type="submit" className="px-8 py-3 neo-button neo-button-blue whitespace-nowrap text-lg">
+                    Donate
+                  </button>
+                </div>
+                <p className="text-sm font-bold text-[var(--nb-black)] opacity-80">Note: Anonymous means hidden in UI. Address remains on-chain.</p>
+              </form>
+            )}
             </div>
-            <p className="text-sm font-bold text-[var(--nb-black)] opacity-80">Note: Anonymous means hidden in UI. Address remains on-chain.</p>
-          </form>
-        )}
-      </div>
+          </div>
+        </div>
 
-      {/* Donation History Table */}
-      <div className="neo-card p-8">
-        <h3 className="text-3xl font-black mb-6 text-[var(--nb-black)] uppercase tracking-tight">Donation History (On-chain)</h3>
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead>
-              <tr>
-                <th className="px-6 py-4 text-left text-sm font-black text-[var(--nb-black)] uppercase tracking-wider border-b-4 border-[var(--nb-black)]">Donor</th>
-                <th className="px-6 py-4 text-left text-sm font-black text-[var(--nb-black)] uppercase tracking-wider border-b-4 border-[var(--nb-black)]">Amount (ETH)</th>
-                <th className="px-6 py-4 text-left text-sm font-black text-[var(--nb-black)] uppercase tracking-wider border-b-4 border-[var(--nb-black)]">Date</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y-4 divide-[var(--nb-black)]">
-              {donations.map((d, idx) => (
-                <tr key={idx} className="hover:bg-[#F3F4F6] transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap text-[var(--nb-black)] font-bold text-lg">
-                    {d.isAnonymous ? "Anonymous" : d.donor}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap font-black text-lg text-[var(--nb-green)]">
-                    {formatEther(d.amount)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-[var(--nb-black)] font-bold">
-                    {new Date(Number(d.timestamp) * 1000).toLocaleString()}
-                  </td>
-                </tr>
-              ))}
-              {donations.length === 0 && (
-                <tr>
-                  <td colSpan="3" className="px-6 py-6 text-center text-[var(--nb-black)] font-bold text-lg">No donations yet.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        {/* =======================
+            RIGHT COLUMN: ACCORDIONS
+            ======================= */}
+        <div className="lg:col-span-5 xl:col-span-5 space-y-6">
+          
+          {/* ACCORDION 1: My Donations */}
+          <div className="neo-card overflow-hidden flex flex-col">
+            <button 
+              onClick={() => setActiveAccordion(activeAccordion === 'myDonations' ? null : 'myDonations')}
+              className={`w-full p-6 text-left flex justify-between items-center bg-[#D1D5DB] focus:outline-none z-10 transition-colors ${activeAccordion === 'myDonations' ? 'border-b-4 border-[var(--nb-black)]' : ''}`}
+            >
+              <h3 className="text-2xl font-black text-[var(--nb-black)] uppercase tracking-tight">My Donations</h3>
+              <span className="text-3xl font-black transition-transform duration-300">{activeAccordion === 'myDonations' ? '−' : '+'}</span>
+            </button>
+            
+            <div 
+              className={`grid transition-all duration-300 ease-in-out bg-white ${activeAccordion === 'myDonations' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
+            >
+              <div className="overflow-hidden">
+                <div className="p-6">
+                  {myDonationsList.length === 0 ? (
+                    <p className="text-center font-bold text-[var(--nb-black)] opacity-70">You haven't donated to this campaign yet.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {myDonationsList.map((d, idx) => {
+                        const amount = parseFloat(formatEther(d.amount));
+                        // We need the original index in the full donations array for refundSpecific
+                        const originalIndex = donations.indexOf(d);
+                        
+                        return (
+                          <div key={idx} className="bg-white border-4 border-[var(--nb-black)] p-4 rounded-lg shadow-[4px_4px_0_0_#000]">
+                            <div className="flex justify-between items-start mb-2">
+                              <span className="font-black text-xl text-[var(--nb-green)]">{formatEther(d.amount)} ETH</span>
+                              <span className="text-xs font-bold text-[var(--nb-black)] opacity-60">
+                                {new Date(Number(d.timestamp) * 1000).toLocaleDateString()}
+                              </span>
+                            </div>
+                            
+                            {/* Refund Button for this specific transaction */}
+                            <div className="mt-4 pt-4 border-t-2 border-dashed border-[var(--nb-black)] text-right">
+                              {isRefundable && amount > 0 ? (
+                                <button
+                                  onClick={() => handleRefundSpecific(originalIndex)}
+                                  className="neo-button neo-button-red px-4 py-2 text-sm w-full sm:w-auto"
+                                >
+                                  Refund this Donation
+                                </button>
+                              ) : amount === 0 && isRefundable ? (
+                                <span className="text-sm font-black text-[var(--nb-red)]">REFUNDED</span>
+                              ) : (
+                                <span className="text-sm font-bold text-[var(--nb-black)] opacity-50">Not eligible for refund</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ACCORDION 2: Global Donation History */}
+          <div className="neo-card overflow-hidden flex flex-col">
+            <button 
+              onClick={() => setActiveAccordion(activeAccordion === 'globalHistory' ? null : 'globalHistory')}
+              className={`w-full p-6 text-left flex justify-between items-center bg-[var(--nb-mustard)] focus:outline-none z-10 transition-colors ${activeAccordion === 'globalHistory' ? 'border-b-4 border-[var(--nb-black)]' : ''}`}
+            >
+              <h3 className="text-2xl font-black text-[var(--nb-black)] uppercase tracking-tight">Global History</h3>
+              <span className="text-3xl font-black transition-transform duration-300">{activeAccordion === 'globalHistory' ? '−' : '+'}</span>
+            </button>
+            
+            <div 
+              className={`grid transition-all duration-300 ease-in-out bg-white ${activeAccordion === 'globalHistory' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
+            >
+              <div className="overflow-hidden">
+                <div className="p-0 overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-[#D1D5DB]">
+                        <th className="px-4 py-3 text-xs font-black text-[var(--nb-black)] uppercase tracking-wider border-b-4 border-[var(--nb-black)]">Donor</th>
+                        <th className="px-4 py-3 text-xs font-black text-[var(--nb-black)] uppercase tracking-wider border-b-4 border-[var(--nb-black)]">Amount</th>
+                        <th className="px-4 py-3 text-xs font-black text-[var(--nb-black)] uppercase tracking-wider border-b-4 border-[var(--nb-black)]">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y-2 divide-[var(--nb-black)]">
+                      {donations.map((d, idx) => {
+                        const amount = parseFloat(formatEther(d.amount));
+                        return (
+                          <tr key={idx} className="hover:bg-[#F3F4F6] transition-colors">
+                            <td className="px-4 py-3 whitespace-nowrap text-[var(--nb-black)] font-bold text-sm">
+                              {d.isAnonymous ? "Anonymous" : `${d.donor.slice(0, 6)}...${d.donor.slice(-4)}`}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap font-black text-sm text-[var(--nb-green)]">
+                              {amount === 0 ? "REFUNDED" : `${formatEther(d.amount)} ETH`}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-xs text-[var(--nb-black)] font-bold">
+                              {new Date(Number(d.timestamp) * 1000).toLocaleString()}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {donations.length === 0 && (
+                        <tr>
+                          <td colSpan="3" className="px-4 py-6 text-center text-[var(--nb-black)] font-bold text-sm">No donations yet.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+          
         </div>
       </div>
 

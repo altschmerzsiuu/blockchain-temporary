@@ -1,6 +1,32 @@
-export const CONTRACT_ADDRESS = "0x8E9ec3ECD06Dc314DEf605770FDfeD5Bc44fFcd1";
+export const CONTRACT_ADDRESS = "0x755C0Cb5CbC22eE6b77bBA2F45Aef30A87C4f2D1";
 
 export const CONTRACT_ABI = [
+	{
+		"inputs": [],
+		"name": "getAdmin",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_campaignId",
+				"type": "uint256"
+			}
+		],
+		"name": "cancelCampaignAdmin",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
 	{
 		"inputs": [
 			{
@@ -176,6 +202,24 @@ export const CONTRACT_ABI = [
 			}
 		],
 		"name": "refund",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_campaignId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_donationIndex",
+				"type": "uint256"
+			}
+		],
+		"name": "refundSpecific",
 		"outputs": [],
 		"stateMutability": "nonpayable",
 		"type": "function"

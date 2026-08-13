@@ -4,22 +4,25 @@ import { formatEther } from 'ethers';
 import toast from 'react-hot-toast';
 
 export default function AdminPanel() {
-  const { contract, account } = useContext(Web3Context);
+  const { contract, account, globalCampaigns, globalDataLoading, refreshGlobalData } = useContext(Web3Context);
   const [isAdmin, setIsAdmin] = useState(false);
   const [pendingRequests, setPendingRequests] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const checkAdminAndFetchRequests = async () => {
-    if (!contract || !account) return;
+    if (!contract || !account || globalDataLoading) return;
     try {
+      setLoading(true);
       setIsAdmin(true); // Bypassed for demo purposes
-      const allCampaigns = await contract.getAllCampaigns();
       
-      // Filter campaigns that have requested withdrawal but not yet approved
+      const requestedStatuses = await Promise.all(
+        globalCampaigns.map(camp => contract.withdrawalRequested(camp.id))
+      );
+      
       const pending = [];
-      for (let i = 0; i < allCampaigns.length; i++) {
-        const camp = allCampaigns[i];
-        const hasRequested = await contract.withdrawalRequested(camp.id);
+      for (let i = 0; i < globalCampaigns.length; i++) {
+        const camp = globalCampaigns[i];
+        const hasRequested = requestedStatuses[i];
         if (hasRequested && !camp.withdrawalApproved && !camp.fundsWithdrawn) {
           pending.push(camp);
         }
@@ -42,7 +45,7 @@ export default function AdminPanel() {
         contract.off("WithdrawalRequested", onWithdrawalRequested);
       };
     }
-  }, [contract, account, isAdmin]);
+  }, [contract, account, isAdmin, globalCampaigns, globalDataLoading]);
 
   const handleApprove = async (campaignId) => {
     if (!contract) return;
@@ -56,7 +59,8 @@ export default function AdminPanel() {
       });
 
       await txPromise;
-      checkAdminAndFetchRequests(); // Refresh
+      checkAdminAndFetchRequests(); // Refresh locally
+      refreshGlobalData(); // Refresh globally
     } catch (err) {
       console.error("Approval failed:", err);
     }
