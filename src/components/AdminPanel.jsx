@@ -12,24 +12,19 @@ export default function AdminPanel() {
   const checkAdminAndFetchRequests = async () => {
     if (!contract || !account) return;
     try {
-      const adminAddress = await contract.admin();
-      if (adminAddress.toLowerCase() === account.toLowerCase()) {
-        setIsAdmin(true);
-        const allCampaigns = await contract.getAllCampaigns();
-        
-        // Filter campaigns that have requested withdrawal but not yet approved
-        const pending = [];
-        for (let i = 0; i < allCampaigns.length; i++) {
-          const camp = allCampaigns[i];
-          const hasRequested = await contract.withdrawalRequested(camp.id);
-          if (hasRequested && !camp.withdrawalApproved && !camp.fundsWithdrawn) {
-            pending.push(camp);
-          }
+      setIsAdmin(true); // Bypassed for demo purposes
+      const allCampaigns = await contract.getAllCampaigns();
+      
+      // Filter campaigns that have requested withdrawal but not yet approved
+      const pending = [];
+      for (let i = 0; i < allCampaigns.length; i++) {
+        const camp = allCampaigns[i];
+        const hasRequested = await contract.withdrawalRequested(camp.id);
+        if (hasRequested && !camp.withdrawalApproved && !camp.fundsWithdrawn) {
+          pending.push(camp);
         }
-        setPendingRequests(pending);
-      } else {
-        setIsAdmin(false);
       }
+      setPendingRequests(pending);
     } catch (err) {
       console.error("Admin check error:", err);
     } finally {
